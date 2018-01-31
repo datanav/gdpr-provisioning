@@ -6,7 +6,9 @@ To provision a new gdpr-portal, do the following:
   * Ssh to the new box and run these commands:
 
        git clone https://github.com/sesam-io/gdpr-provisioning.git
+       
        cd gdpr-provisioning
+       
        sudo ./provision.sh
 
 

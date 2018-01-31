@@ -3,6 +3,14 @@ This repo contains various files for manually provisioning a gdpr portal box.
 
 To provision a new gdpr-portal, do the following:
   * Provision a new subscription in the sesam portal.
+  * In the sesam-portal, add these secrets:
+       
+       email_server_password
+       
+       twilio-account-number
+       
+       twilio-api-token
+        
   * Ssh to the new box and run these commands:
 
        git clone https://github.com/sesam-io/gdpr-provisioning.git
@@ -10,5 +18,6 @@ To provision a new gdpr-portal, do the following:
        cd gdpr-provisioning
        
        sudo ./provision.sh
+  
 
 

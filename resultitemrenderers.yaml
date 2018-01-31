@@ -1,0 +1,10 @@
+# We want to use the "ItemAttributeColumns" renderer for search-results. The "attributegroups" property of
+# the search-result items is set by the "expandEncryptedFields" function in the "databrowser.jsx" file.
+default:
+#- renderer: ResultItemItemLink
+- renderer: ResultItemHeaderWithoutLink
+- renderer: ResultItemTypes
+- renderer: ResultItemDateTime
+- renderer: ItemAttributeColumns
+- renderer: ResultItemDescriptions
+#- renderer: ResultItemHashLink

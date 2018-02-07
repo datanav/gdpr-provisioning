@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # vim: ai ts=2 sw=2 et sts=2 ft=sh
 
+apt install -y jq
+REPO_USER="$(jq -r '.docker_username' < /etc/sesam-agent/config.json)"
+REPO_PASS="$(jq -r '.docker_password' < /etc/sesam-agent/config.json)"
+docker login --username "$REPO_USER" --password "$REPO_PASS"
 
 set -e
 
 if [ -z "$SUBSCRIPTION_ID" ]; then
-  export SUBSCRIPTION_ID=$(awk '/subscriber_id: "/{gsub(/"/, "", $2);print $2;exit}' /sesam/filebeat/conf/filebeat.yml)
+  SUBSCRIPTION_ID="$(grep -v 'SESAM' < /sesam/node-00/data/license.key | base64 -d | jq -r '.payload' | base64 -d | jq -r '._id')"
   if [ -z "$SUBSCRIPTION_ID" ]; then
-    echo No SUBSCRIPTION_ID environment variable was defined, and I failed to get the subscription-id from the '/sesam/filebeat/conf/filebeat.yml' file!
+    echo No SUBSCRIPTION_ID environment variable was defined, and I failed to get the subscription-id from the license file!
     exit -1
   fi
 fi
@@ -17,9 +21,9 @@ export DATABROWSER_DOCKER_IMAGE_TAG=${DATABROWSER_DOCKER_IMAGE_TAG:-prototype-en
 export SOLR_DOCKER_IMAGE_TAG=${SOLR_DOCKER_IMAGE_TAG:-gdpr}
 
 echo I will use the following settings:
-echo SUBSCRIPTION_ID: \"$SUBSCRIPTION_ID\".
-echo DATABROWSER_DOCKER_IMAGE_TAG: \"$DATABROWSER_DOCKER_IMAGE_TAG\".
-echo SOLR_DOCKER_IMAGE_TAG: \"$SOLR_DOCKER_IMAGE_TAG\".
+echo SUBSCRIPTION_ID: \""$SUBSCRIPTION_ID"\".
+echo DATABROWSER_DOCKER_IMAGE_TAG: \""$DATABROWSER_DOCKER_IMAGE_TAG"\".
+echo SOLR_DOCKER_IMAGE_TAG: \""$SOLR_DOCKER_IMAGE_TAG"\".
 
 read -p "Do these settings look ok? (y/n)" -n 1 -r
 echo    # (optional) move to a new line
@@ -29,25 +33,19 @@ then
   set -x
 
   bs_docker() {
-    docker pull sesam/sesam-solr:$SOLR_DOCKER_IMAGE_TAG
+    docker pull sesam/sesam-solr:"$SOLR_DOCKER_IMAGE_TAG"
     docker pull sesam/sesam-redis:latest
-    docker pull sesam/databrowser:$DATABROWSER_DOCKER_IMAGE_TAG
+    docker pull sesam/databrowser:"$DATABROWSER_DOCKER_IMAGE_TAG"
     docker pull v2tec/watchtower:latest
     #docker logout
     #rm -rf ~/.docker
   }
 
   bs_watchtower() {
-    mkdir -p /srv/data/watchtower/conf
-    REPO_USER=$(awk '/docker_username/{gsub(/"/, "", $2);gsub(",", "");print $2;}' /etc/sesam-agent/config.json)
-    REPO_PASS=$(awk '/docker_password/{gsub(/"/, "", $2);gsub(",", "");print $2;}' /etc/sesam-agent/config.json)
-
     docker run -d \
     --name watchtower \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    -v /srv/data/watchtower/conf/config.json:/config.json \
-    --env REPO_USER="$REPO_USER" \
-    --env REPO_PASS="$REPO_PASS" \
+    -v /root/.docker/config.json:/config.json \
     v2tec/watchtower redis solr databrowser
   }
 
@@ -60,7 +58,7 @@ then
       -u "1000" \
       -p 8983:8983 \
       -v /srv/data/solr/data:/sesam/data/solr-data \
-      index.docker.io/sesam/sesam-solr:$SOLR_DOCKER_IMAGE_TAG
+      index.docker.io/sesam/sesam-solr:"$SOLR_DOCKER_IMAGE_TAG"
 
     docker network connect microservices solr
   }
@@ -69,7 +67,7 @@ then
     mkdir -p /srv/data/redis/{data,conf,logs,temp}
     chown -R 200:200 /srv/data/redis
 
-    cat redis.conf | envsubst > /srv/data/redis/conf/redis.conf
+    envsubst < redis.conf > /srv/data/redis/conf/redis.conf
 
     docker run -d --restart always --name redis \
     --network=sesam \
@@ -86,9 +84,9 @@ then
   bs_databrowser() {
     mkdir -p /srv/data/databrowser/{data,conf,logs}
     chown -R 200:200 /srv/data/databrowser
-    cat production.ini | envsubst > /srv/data/databrowser/conf/production.ini
+    envsubst < production.ini > /srv/data/databrowser/conf/production.ini
 
-    cat databrowser.ini | envsubst > /srv/data/databrowser/conf/databrowser.ini
+    envsubst < databrowser.ini > /srv/data/databrowser/conf/databrowser.ini
     cp resultitemrenderers.yaml /srv/data/databrowser/conf/resultitemrenderers.yaml
 
     docker run -d --restart always --name databrowser \
@@ -100,7 +98,7 @@ then
       -e SESAM_CONF=/sesam/conf \
       -e SESAM_LOGS=/sesam/logs \
       -e SESAM_DATA=/sesam/data \
-      index.docker.io/sesam/databrowser:$DATABROWSER_DOCKER_IMAGE_TAG pserve --reload /sesam/conf/production.ini
+      index.docker.io/sesam/databrowser:"$DATABROWSER_DOCKER_IMAGE_TAG" pserve --reload /sesam/conf/production.ini
 
     docker network connect microservices databrowser
   }

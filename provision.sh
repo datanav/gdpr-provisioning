@@ -18,6 +18,8 @@ fi
 
 DATABROWSER_DOCKER_IMAGE_TAG=${DATABROWSER_DOCKER_IMAGE_TAG:-prototype-encrypted-fields}
 SOLR_DOCKER_IMAGE_TAG=${SOLR_DOCKER_IMAGE_TAG:-gdpr}
+APPLIANCE_ID=$(< /etc/sesam-agent/id)
+HOST_IP_ADDRESS="$(ip route get 1 | awk '{print $NF;exit}')"
 
 bs_docker() {
   docker pull sesam/sesam-solr:"$SOLR_DOCKER_IMAGE_TAG"
@@ -88,6 +90,29 @@ bs_databrowser() {
   docker network connect microservices databrowser
 }
 
+bs_consul_service() {
+if [ -d "/srv/data/consul/conf/" ]; then
+cat > /srv/data/consul/conf/databrowser.json << SCRPT_EOF
+{
+  "services": [
+    {
+      "name": "sesam-databrowser:$SUBSCRIPTION_ID",
+      "tags": [
+        "traefik.tags=sesam",
+        "traefik.frontend.rule=Host:gdpr-${SUBSCRIPTION_ID:0:8}.sesam.cloud",
+        "traefik.frontend.entryPoints=https,http",
+        "appliance_id: $APPLIANCE_ID",
+        "subscription_id: $SUBSCRIPTION_ID"
+      ],
+      "address": "$HOST_IP_ADDRESS",
+      "port": 6543
+    }  
+  ]
+}
+SCRPT_EOF
+fi  
+}
+
 echo I will use the following settings:
 echo SUBSCRIPTION_ID: \""$SUBSCRIPTION_ID"\".
 echo DATABROWSER_DOCKER_IMAGE_TAG: \""$DATABROWSER_DOCKER_IMAGE_TAG"\".
@@ -111,6 +136,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   bs_redis
   bs_databrowser
   bs_watchtower
+  bs_consul_service
 
   echo Provisioning finished successfully.
 else

@@ -26,6 +26,8 @@ bs_docker() {
   docker pull sesam/sesam-redis:latest
   docker pull sesam/databrowser:"$DATABROWSER_DOCKER_IMAGE_TAG"
   docker pull v2tec/watchtower:latest
+  docker network create sesam
+  docker network create microservices
 }
 
 bs_watchtower() {
